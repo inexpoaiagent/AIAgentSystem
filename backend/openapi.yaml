@@ -1,0 +1,208 @@
+openapi: 3.1.0
+info:
+  title: AI Business OS API
+  version: 0.1.0
+servers:
+  - url: https://api.ai-business-os.example.com
+security:
+  - bearerAuth: []
+paths:
+  /v1/workspace:
+    get:
+      summary: Current tenant workspace
+      responses:
+        "200":
+          description: Workspace context with active agents and plan limits.
+  /v1/agents:
+    get:
+      summary: List installed agents
+      responses:
+        "200":
+          description: Installed tenant agents.
+    post:
+      summary: Install or create an agent
+      responses:
+        "201":
+          description: Agent installed.
+  /v1/agent-tasks:
+    post:
+      summary: Dispatch an agent task
+      responses:
+        "202":
+          description: Task accepted and queued.
+  /v1/meetings:
+    post:
+      summary: Start AI meeting
+      responses:
+        "202":
+          description: Meeting started.
+  /v1/meetings/{meetingId}/events:
+    get:
+      summary: Stream or list meeting events
+      parameters:
+        - in: path
+          name: meetingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent messages, votes, debate events, and consensus updates.
+  /v1/orchestrator/plan:
+    post:
+      summary: Create hierarchical multi-agent plan
+      responses:
+        "200":
+          description: Goals, agents, priorities, memory queries, approvals, and cost estimate.
+  /v1/orchestrator/execute:
+    post:
+      summary: Execute an approved autonomous plan
+      responses:
+        "202":
+          description: Execution accepted and trace ID returned.
+  /v1/approvals:
+    get:
+      summary: List pending human approvals
+      responses:
+        "200":
+          description: Sensitive actions waiting for user or admin approval.
+  /v1/approvals/{approvalId}/decision:
+    post:
+      summary: Approve or reject a sensitive action
+      parameters:
+        - in: path
+          name: approvalId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Decision recorded and workflow resumed or cancelled.
+  /v1/tools/registry:
+    get:
+      summary: List MCP/plugin tool registry
+      responses:
+        "200":
+          description: Available tools, risk levels, schemas, and approval requirements.
+  /v1/tools/executions:
+    post:
+      summary: Schedule a tool execution
+      responses:
+        "202":
+          description: Tool execution queued with sandbox policy.
+  /v1/sandbox/jobs:
+    get:
+      summary: List sandbox jobs
+      responses:
+        "200":
+          description: Isolated execution jobs with resource limits and logs.
+    post:
+      summary: Create sandbox job
+      responses:
+        "202":
+          description: Sandbox job accepted.
+  /v1/observability/traces/{traceId}:
+    get:
+      summary: Get agent execution trace
+      parameters:
+        - in: path
+          name: traceId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent trace, prompt logs, tool logs, token usage, and replay artifact.
+  /v1/observability/replays/{traceId}:
+    post:
+      summary: Build execution replay artifact
+      parameters:
+        - in: path
+          name: traceId
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Replay generation queued.
+  /v1/workflows/{workflowId}/runs:
+    post:
+      summary: Run workflow
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Workflow run queued.
+  /v1/voice/sessions:
+    post:
+      summary: Create realtime voice session
+      responses:
+        "201":
+          description: Provider token and session metadata.
+  /v1/billing/usage:
+    get:
+      summary: Usage billing summary
+      responses:
+        "200":
+          description: Usage totals and limits.
+  /v1/tickets:
+    get:
+      summary: List tenant support tickets
+      responses:
+        "200":
+          description: Ticket list with status, priority, assignee, replies, and attachments.
+    post:
+      summary: Create support ticket
+      responses:
+        "201":
+          description: Ticket created and notification dispatched.
+  /v1/notifications:
+    get:
+      summary: List user notifications
+      responses:
+        "200":
+          description: In-app notification feed.
+  /v1/notifications/preferences:
+    put:
+      summary: Update notification channel preferences
+      responses:
+        "200":
+          description: Preferences saved.
+  /v1/admin/llm-providers:
+    get:
+      summary: List LLM providers and routing health
+      responses:
+        "200":
+          description: Provider health, spend, latency, limits, and failover state.
+    post:
+      summary: Create or rotate provider credentials
+      responses:
+        "201":
+          description: Provider configured.
+  /v1/website-builder/projects:
+    get:
+      summary: List AI generated website projects
+      responses:
+        "200":
+          description: Website builder projects.
+    post:
+      summary: Generate website project
+      responses:
+        "202":
+          description: Generation job queued.
+  /v1/help/search:
+    get:
+      summary: Search help center content
+      responses:
+        "200":
+          description: Guides, videos, and AI assistant suggestions.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
