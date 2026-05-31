@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from .agents import AGENTS
+from .business_doctor import BusinessChannelInput, diagnose_business
 from .meeting import AgentMeetingRoom
 from .orchestrator import MultiAgentOrchestrator
 from .tools import TOOLS, create_sandbox_job
@@ -22,6 +23,15 @@ class SandboxRequest(BaseModel):
     tenant_id: str
     task_id: str
     tool_slug: str
+
+
+class BusinessDoctorRequest(BaseModel):
+    tenant_id: str
+    industry: str
+    website: str
+    instagram: str
+    facebook: str
+    youtube: str
 
 
 @app.get("/health")
@@ -73,3 +83,22 @@ def start_meeting(request: AgentRequest) -> dict[str, object]:
 @app.post("/sandbox/jobs")
 def sandbox_job(request: SandboxRequest) -> dict[str, object]:
     return create_sandbox_job(request.tool_slug, request.tenant_id, request.task_id)
+
+
+@app.post("/business-doctor/analyze")
+def analyze_business(request: BusinessDoctorRequest) -> dict[str, object]:
+    diagnosis = diagnose_business(
+        BusinessChannelInput(
+            tenant_id=request.tenant_id,
+            industry=request.industry,
+            website=request.website,
+            instagram=request.instagram,
+            facebook=request.facebook,
+            youtube=request.youtube,
+        )
+    )
+    plan = orchestrator.plan(request.tenant_id, f"Fix growth, sales, SEO, CRM, social, website, and accounting for {request.industry}", "manual")
+    return {
+        "diagnosis": diagnosis,
+        "orchestration_plan": orchestrator.serialize_plan(plan),
+    }

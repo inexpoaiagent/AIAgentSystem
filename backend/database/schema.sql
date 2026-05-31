@@ -15,6 +15,18 @@ create table companies (
   updated_at timestamptz not null default now()
 );
 
+create table company_channels (
+  id uuid primary key,
+  company_id uuid not null references companies(id),
+  channel_type text not null check (channel_type in ('website', 'instagram', 'facebook', 'youtube', 'linkedin', 'tiktok')),
+  url text not null,
+  status text not null default 'pending',
+  last_analyzed_at timestamptz,
+  metadata jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  unique (company_id, channel_type, url)
+);
+
 create table users (
   id uuid primary key,
   company_id uuid not null references companies(id),
@@ -305,6 +317,51 @@ create table seo_technical_issues (
   url text not null,
   title text not null,
   recommendation text
+);
+
+create table business_diagnoses (
+  id uuid primary key,
+  company_id uuid not null references companies(id),
+  industry text not null,
+  health_score integer not null,
+  status text not null default 'completed',
+  executive_summary text,
+  channels jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create table business_diagnosis_findings (
+  id uuid primary key,
+  diagnosis_id uuid not null references business_diagnoses(id) on delete cascade,
+  area text not null,
+  score integer not null,
+  severity text not null,
+  issue text not null,
+  recommendation text not null,
+  agent_slugs text[] not null default '{}'
+);
+
+create table business_action_recommendations (
+  id uuid primary key,
+  diagnosis_id uuid not null references business_diagnoses(id) on delete cascade,
+  title text not null,
+  action_type text not null,
+  risk_level text not null default 'medium',
+  approval_required boolean not null default true,
+  status text not null default 'recommended',
+  workflow_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create table competitor_intelligence_reports (
+  id uuid primary key,
+  company_id uuid not null references companies(id),
+  diagnosis_id uuid references business_diagnoses(id),
+  competitor_domain text,
+  competitor_social_url text,
+  findings jsonb not null default '{}',
+  opportunities jsonb not null default '[]',
+  created_at timestamptz not null default now()
 );
 
 create table agents (
@@ -698,6 +755,8 @@ create table audit_logs (
 );
 
 create index idx_users_company_status on users(company_id, status);
+create index idx_company_channels_company_type on company_channels(company_id, channel_type, status);
+create index idx_business_diagnoses_company on business_diagnoses(company_id, created_at desc);
 create index idx_sessions_user_expires on user_sessions(user_id, expires_at);
 create index idx_agents_company_status on agents(company_id, status);
 create index idx_tasks_company_status on agent_tasks(company_id, status, priority);

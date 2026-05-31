@@ -40,10 +40,10 @@ export function saveSession(session: Record<string, unknown>) {
   );
 }
 
-export function getSession<T extends Record<string, unknown>>() {
+export function getSession<T extends Record<string, unknown>>(): Partial<T> {
   try {
     return JSON.parse(localStorage.getItem(SESSION_KEY) ?? "{}") as Partial<T>;
   } catch {
-    return {};
+    return {} as Partial<T>;
   }
 }

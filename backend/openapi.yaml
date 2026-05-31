@@ -13,6 +13,29 @@ paths:
       responses:
         "200":
           description: Workspace context with active agents and plan limits.
+  /v1/business-doctor/analyze:
+    post:
+      summary: Analyze company website and social channels
+      responses:
+        "202":
+          description: Business diagnosis queued or completed with SEO, design, content, social, CRM, lead, accounting, and action recommendations.
+  /v1/business-doctor/diagnoses:
+    get:
+      summary: List company business diagnosis reports
+      responses:
+        "200":
+          description: Historical business health reports and recommended action plans.
+  /v1/company/channels:
+    get:
+      summary: List connected company website and social channels
+      responses:
+        "200":
+          description: Website, Instagram, Facebook, YouTube, and other channels connected to the tenant.
+    post:
+      summary: Connect company website or social channel
+      responses:
+        "201":
+          description: Channel connected and ready for analysis.
   /v1/agents:
     get:
       summary: List installed agents

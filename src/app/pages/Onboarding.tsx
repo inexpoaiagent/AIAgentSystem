@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
 import { Brain, TrendingUp, Users, MessageSquare, BarChart3, Globe, Shield, Zap, Bot, Check } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -12,6 +13,12 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [selectedIndustry, setSelectedIndustry] = useState("");
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
+  const [channels, setChannels] = useState({
+    website: "",
+    instagram: "",
+    facebook: "",
+    youtube: "",
+  });
 
   const industries = [
     "E-commerce",
@@ -45,15 +52,15 @@ export default function Onboarding() {
 
   const handleComplete = () => {
     const session = getSession();
-    saveSession({ ...session, industry: selectedIndustry, agents: selectedAgents, onboardingComplete: true });
+    saveSession({ ...session, industry: selectedIndustry, agents: selectedAgents, businessChannels: { ...channels, industry: selectedIndustry }, onboardingComplete: true });
     createRuntimeEvent({
       type: "audit",
       title: "Onboarding completed",
-      detail: `${selectedIndustry} workspace activated with ${selectedAgents.length} AI agents.`,
+      detail: `${selectedIndustry} workspace activated with ${selectedAgents.length} AI agents and business channels connected.`,
       status: "completed",
     });
-    toast.success("AI team activated", { description: "Your workspace is ready." });
-    navigate("/workspace");
+    toast.success("AI team activated", { description: "Run the Business Doctor diagnosis next." });
+    navigate("/business-doctor");
   };
 
   return (
@@ -68,17 +75,17 @@ export default function Onboarding() {
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            {[1, 2].map((num) => (
+            {[1, 2, 3].map((num) => (
               <div key={num} className="flex items-center gap-2">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${step >= num ? "bg-gradient-to-br from-blue-500 to-purple-600" : "bg-white/10"}`}>
                   {num}
                 </div>
-                {num < 2 && <div className={`w-20 h-1 ${step > num ? "bg-gradient-to-r from-blue-500 to-purple-600" : "bg-white/10"}`} />}
+                {num < 3 && <div className={`w-20 h-1 ${step > num ? "bg-gradient-to-r from-blue-500 to-purple-600" : "bg-white/10"}`} />}
               </div>
             ))}
           </div>
           <div className="text-center text-gray-400 text-sm">
-            Step {step} of 2
+            Step {step} of 3
           </div>
         </div>
 
@@ -127,7 +134,7 @@ export default function Onboarding() {
                 Continue
               </Button>
             </Card>
-          ) : (
+          ) : step === 2 ? (
             <Card className="bg-[#111117]/80 backdrop-blur-xl border-white/10 p-8">
               <div className="flex items-center justify-center mb-8">
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-2xl shadow-blue-500/50">
@@ -178,11 +185,60 @@ export default function Onboarding() {
                   Back
                 </Button>
                 <Button
-                  onClick={handleComplete}
+                  onClick={() => setStep(3)}
                   disabled={selectedAgents.length === 0}
                   className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 h-12"
                 >
-                  Complete Setup
+                  Continue
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <Card className="bg-[#111117]/80 backdrop-blur-xl border-white/10 p-8">
+              <div className="flex items-center justify-center mb-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-2xl shadow-blue-500/50">
+                  <Globe className="w-8 h-8" />
+                </div>
+              </div>
+
+              <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold mb-2">Connect Your Business Channels</h1>
+                <p className="text-gray-400">The AI Business Doctor will analyze your website and social presence.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {[
+                  ["website", "Website URL", "https://company.com"],
+                  ["instagram", "Instagram URL", "https://instagram.com/company"],
+                  ["facebook", "Facebook URL", "https://facebook.com/company"],
+                  ["youtube", "YouTube URL", "https://youtube.com/@company"],
+                ].map(([key, label, placeholder]) => (
+                  <label key={key} className="block">
+                    <span className="text-sm text-gray-300 mb-2 block">{label}</span>
+                    <Input
+                      value={channels[key as keyof typeof channels]}
+                      onChange={(event) => setChannels({ ...channels, [key]: event.target.value })}
+                      placeholder={placeholder}
+                      className="bg-white/5 border-white/10 text-white"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex gap-4">
+                <Button
+                  onClick={() => setStep(2)}
+                  variant="outline"
+                  className="flex-1 border-white/20 text-white hover:bg-white/10 h-12"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handleComplete}
+                  disabled={!channels.website || !channels.instagram || !channels.facebook || !channels.youtube}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 h-12"
+                >
+                  Analyze Company
                 </Button>
               </div>
             </Card>

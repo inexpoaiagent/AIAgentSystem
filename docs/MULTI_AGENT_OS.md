@@ -4,6 +4,15 @@
 
 The product is not an AI chat surface. It is a hierarchical AI company that can plan work, debate options, request approvals, execute tools, recover from failures, and learn from outcomes.
 
+## Business Doctor Flow
+
+1. Company subscribes and enters website, Instagram, Facebook, and YouTube.
+2. AI Business Doctor analyzes SEO, website UX, content, social growth, lead capture, CRM readiness, and financial visibility.
+3. The system creates a diagnosis with health score, findings, recommended AI team, and action plan.
+4. Agents hold a strategy meeting and decide what to fix first.
+5. Human approval is required for publishing, messaging leads, running ad campaigns, deployments, and financial actions.
+6. Approved tasks become workflows owned by SEO, CRM, Sales, Social, Website Designer, Accounting, and Project Manager agents.
+
 ## Hierarchy
 
 - CEO Agent: final decision maker and conflict resolver.

@@ -25,6 +25,7 @@ import HelpCenter from "./pages/HelpCenter";
 import AgentOS from "./pages/AgentOS";
 import QAAudit from "./pages/QAAudit";
 import NotFound from "./pages/NotFound";
+import BusinessDoctor from "./pages/BusinessDoctor";
 
 export const router = createBrowserRouter([
   {
@@ -126,6 +127,10 @@ export const router = createBrowserRouter([
   {
     path: "/qa-audit",
     Component: QAAudit,
+  },
+  {
+    path: "/business-doctor",
+    Component: BusinessDoctor,
   },
   {
     path: "*",

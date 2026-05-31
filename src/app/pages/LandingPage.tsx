@@ -131,6 +131,12 @@ export default function LandingPage() {
                     {copy.secondary}
                   </Button>
                 </Link>
+                <Link to="/business-doctor">
+                  <Button size="lg" variant="outline" className="h-12 px-7 border-white/20 text-white hover:bg-white/10">
+                    <Brain className="w-4 h-4 mr-2" />
+                    Business Doctor
+                  </Button>
+                </Link>
               </div>
               <div className="mt-8 grid grid-cols-3 gap-4 max-w-xl">
                 {["98.4% task success", "142 ms voice latency", "1,284 tenants"].map((metric) => (
