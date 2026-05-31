@@ -137,6 +137,12 @@ export default function LandingPage() {
                     Business Doctor
                   </Button>
                 </Link>
+                <Link to="/ceo">
+                  <Button size="lg" variant="outline" className="h-12 px-7 border-white/20 text-white hover:bg-white/10">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    AI CEO
+                  </Button>
+                </Link>
               </div>
               <div className="mt-8 grid grid-cols-3 gap-4 max-w-xl">
                 {["98.4% task success", "142 ms voice latency", "1,284 tenants"].map((metric) => (

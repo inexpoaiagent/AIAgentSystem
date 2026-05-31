@@ -9,6 +9,7 @@ The platform is designed as an AI Business OS where companies can run SEO, CRM, 
 - Premium landing page with AI workflow/dashboard preview.
 - AI workspace, realtime voice interface, AI meeting room, CRM, SEO, social media, automation builder, billing, and company brain screens.
 - Autonomous Agent OS command center with agent hierarchy, meeting visualization, execution timeline, approval queue, sandbox tools, cost monitoring, and trace concepts.
+- AI CEO Command Center inspired by the Claude artifact: business health score, executive agent boardroom, risk detection, growth recommendations, autonomous workflows, and approval-gated execution.
 - AI marketplace, super admin, analytics, tickets, notifications, LLM management, website designer agent, help center, and production QA audit screens.
 - Multilingual landing foundation for English, Persian RTL, and Turkish.
 - Frontend service shells for API access, runtime events, notification logging, and realtime WebRTC voice sessions.
@@ -31,6 +32,8 @@ Then open `http://localhost:5173`.
 - `/` - Landing page
 - `/workspace` - Main AI workspace
 - `/agent-os` - Autonomous multi-agent operating system command center
+- `/ceo` - AI CEO command center for business diagnosis, boardroom decisions, and growth execution
+- `/business-doctor` - Company website/social diagnosis and action center
 - `/meeting` - AI meeting room
 - `/voice` - Voice AI interface
 - `/automation` - Workflow builder

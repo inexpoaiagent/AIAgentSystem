@@ -149,6 +149,12 @@ export default function MainWorkspace() {
                     Agent OS
                   </Button>
                 </Link>
+                <Link to="/ceo">
+                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    AI CEO
+                  </Button>
+                </Link>
                 <Link to="/business-doctor">
                   <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
                     <Brain className="w-4 h-4 mr-2" />

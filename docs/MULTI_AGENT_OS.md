@@ -13,6 +13,19 @@ The product is not an AI chat surface. It is a hierarchical AI company that can 
 5. Human approval is required for publishing, messaging leads, running ad campaigns, deployments, and financial actions.
 6. Approved tasks become workflows owned by SEO, CRM, Sales, Social, Website Designer, Accounting, and Project Manager agents.
 
+## AI CEO Command Center
+
+The `/ceo` surface turns diagnosis and orchestration into a CEO-friendly operating cockpit:
+
+- Business health score with revenue, lead, SEO, and cost metrics.
+- Executive agent boardroom showing CEO, Sales, SEO, Social, Finance, and QA confidence.
+- Risk detection for lead response, SEO gaps, and social-to-CRM leakage.
+- Growth recommendations with owner agents and expected impact.
+- Autonomous workflow progress with approval-needed states.
+- Live execution timeline from intake through consensus and governance.
+
+This screen is inspired by the Claude artifact reference but implemented as a first-class route inside the existing React/Tailwind application so it uses real navigation, runtime events, approval logging, multilingual direction handling, and the same product shell.
+
 ## Hierarchy
 
 - CEO Agent: final decision maker and conflict resolver.

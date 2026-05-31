@@ -23,6 +23,7 @@ import WebsiteDesigner from "./pages/WebsiteDesigner";
 import LLMManagement from "./pages/LLMManagement";
 import HelpCenter from "./pages/HelpCenter";
 import AgentOS from "./pages/AgentOS";
+import CEOCommandCenter from "./pages/CEOCommandCenter";
 import QAAudit from "./pages/QAAudit";
 import NotFound from "./pages/NotFound";
 import BusinessDoctor from "./pages/BusinessDoctor";
@@ -123,6 +124,10 @@ export const router = createBrowserRouter([
   {
     path: "/agent-os",
     Component: AgentOS,
+  },
+  {
+    path: "/ceo",
+    Component: CEOCommandCenter,
   },
   {
     path: "/qa-audit",
