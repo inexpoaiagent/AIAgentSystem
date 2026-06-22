@@ -66,7 +66,7 @@ export default function LandingPage() {
   const [locale, setLocale] = useState<Locale>("en");
   const copy = landingCopy[locale];
   const dir = locales[locale].dir;
-  const { packs: INDUSTRY_PACKS } = usePacks();
+  const { packs: INDUSTRY_PACKS, loading: packsLoading } = usePacks();
 
   return (
     <div dir={dir} className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden">
@@ -295,13 +295,20 @@ export default function LandingPage() {
               Choose your industry and activate a specialized AI agent team in minutes — fully trained for your workflows, challenges, and KPIs.
             </p>
 
+            {packsLoading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-72 rounded-2xl bg-white/5 animate-pulse" />
+                ))}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {INDUSTRY_PACKS.map((pack, i) => (
                 <motion.div
                   key={pack.id}
                   initial={{ opacity: 0, y: 18 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
                 >
                   <Card className="bg-[#111117]/60 border-white/10 overflow-hidden h-full flex flex-col hover:border-white/25 hover:-translate-y-1 transition-all duration-200 hover:shadow-2xl">
