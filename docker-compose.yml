@@ -7,8 +7,39 @@ services:
       - "5173:5173"
     volumes:
       - ./:/app
+      - /app/backend
+      - /app/ai-engine
     environment:
       VITE_API_URL: http://localhost:8080
+      VITE_AI_ENGINE_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://ai_os:ai_os_dev@postgres:5432/ai_business_os?schema=public
+      JWT_SECRET: change_me_in_production_long_random_string
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: change_me_refresh_in_production
+      JWT_REFRESH_EXPIRES_IN: 7d
+      REDIS_URL: redis://redis:6379
+      AI_ENGINE_URL: http://ai-engine:8000
+      FRONTEND_URL: http://localhost:5173
+      PORT: 8080
+      NODE_ENV: production
+      VOICE_PROVIDER_SECRET: change_me_voice_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "npx prisma migrate deploy && npx ts-node prisma/seed.ts; node dist/main"
 
   ai-engine:
     image: python:3.12-slim
@@ -21,6 +52,11 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       QDRANT_URL: http://qdrant:6333
+      # ── LLM Keys (add your own) ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
 
   postgres:
     image: postgres:16-alpine
@@ -32,11 +68,18 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_os -d ai_business_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
 
   qdrant:
     image: qdrant/qdrant:v1.14.1
@@ -59,5 +102,6 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:
   qdrant-data:
   minio-data:

@@ -7,9 +7,11 @@ import { Badge } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
 import { landingCopy, locales } from "../lib/i18n";
 import type { Locale } from "../lib/i18n";
+import { usePacks } from "../hooks/usePacks";
 import {
   ArrowRight,
   BarChart3,
+  Bot,
   Brain,
   Check,
   Code2,
@@ -22,6 +24,7 @@ import {
   MessageSquare,
   Play,
   Shield,
+  ShoppingBag,
   Sparkles,
   Star,
   TrendingUp,
@@ -63,6 +66,7 @@ export default function LandingPage() {
   const [locale, setLocale] = useState<Locale>("en");
   const copy = landingCopy[locale];
   const dir = locales[locale].dir;
+  const { packs: INDUSTRY_PACKS } = usePacks();
 
   return (
     <div dir={dir} className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden">
@@ -277,6 +281,91 @@ export default function LandingPage() {
 }`}
               </pre>
             </Card>
+          </div>
+        </section>
+
+        {/* ── Industry Packs ──────────────────────────────────────────── */}
+        <section id="industry-packs" className="px-4 py-20">
+          <div className="max-w-7xl mx-auto">
+            <SectionTitle
+              eyebrow="Industry AI Packs"
+              title="Your business. Your AI team. Pre-built."
+            />
+            <p className="text-center text-gray-400 -mt-8 mb-12 max-w-2xl mx-auto text-base">
+              Choose your industry and activate a specialized AI agent team in minutes — fully trained for your workflows, challenges, and KPIs.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {INDUSTRY_PACKS.map((pack, i) => (
+                <motion.div
+                  key={pack.id}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.06 }}
+                >
+                  <Card className="bg-[#111117]/60 border-white/10 overflow-hidden h-full flex flex-col hover:border-white/25 hover:-translate-y-1 transition-all duration-200 hover:shadow-2xl">
+                    <div className="h-1.5" style={{ background: pack.color }} />
+                    <div className="p-5 flex flex-col flex-1">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <span className="text-3xl">{pack.emoji}</span>
+                        <Badge className="text-xs shrink-0" style={{ background: `${pack.color}22`, color: pack.color, borderColor: `${pack.color}44` }}>
+                          {pack.tier === "gold" ? "Gold" : "Pro"} · ${pack.price}/mo
+                        </Badge>
+                      </div>
+
+                      <h3 className="font-bold text-lg mb-1">{pack.name}</h3>
+                      <p className="text-xs text-gray-400 mb-4 leading-relaxed">{pack.tagline}</p>
+
+                      {/* Pain points */}
+                      <div className="space-y-1.5 mb-4">
+                        {pack.painPoints.slice(0, 2).map((p) => (
+                          <div key={p} className="flex items-start gap-2 text-xs text-gray-500">
+                            <span className="text-red-400 mt-0.5 shrink-0">✕</span>
+                            <span className="line-clamp-1">{p}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Agents */}
+                      <div className="flex items-center gap-1.5 mb-4">
+                        <Bot className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="text-xs text-gray-400">{pack.agents.length} specialized AI agents</span>
+                      </div>
+
+                      {/* Outcomes */}
+                      <div className="space-y-1 mb-5 flex-1">
+                        {pack.outcomes.slice(0, 2).map((o) => (
+                          <div key={o.metric} className="flex items-start gap-2 text-xs text-gray-300">
+                            <Check className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />
+                            <span className="line-clamp-1"><strong>{o.metric}</strong> {o.description}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* CTA */}
+                      <Link to={`/industry/${pack.id}`}>
+                        <Button className="w-full h-9 text-sm font-medium text-white border-0"
+                          style={{ background: `linear-gradient(135deg, ${pack.gradientFrom}, ${pack.gradientTo})` }}>
+                          View Pack
+                          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Link to="/industry">
+                <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 h-12 px-8">
+                  <ShoppingBag className="w-4 h-4 mr-2" />
+                  Explore All Industry Packs
+                </Button>
+              </Link>
+            </div>
           </div>
         </section>
 

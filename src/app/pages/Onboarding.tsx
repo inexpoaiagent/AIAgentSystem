@@ -7,6 +7,7 @@ import { Brain, TrendingUp, Users, MessageSquare, BarChart3, Globe, Shield, Zap,
 import { useState } from "react";
 import { toast } from "sonner";
 import { createRuntimeEvent, getSession, saveSession } from "../lib/runtime-store";
+import { api } from "../lib/api";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -50,13 +51,19 @@ export default function Onboarding() {
     );
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     const session = getSession();
     saveSession({ ...session, industry: selectedIndustry, agents: selectedAgents, businessChannels: { ...channels, industry: selectedIndustry }, onboardingComplete: true });
+    // Save industry + channels to backend
+    try {
+      await api.updateCompany({ industry: selectedIndustry, ...channels });
+    } catch {
+      // non-fatal — session is saved locally
+    }
     createRuntimeEvent({
       type: "audit",
       title: "Onboarding completed",
-      detail: `${selectedIndustry} workspace activated with ${selectedAgents.length} AI agents and business channels connected.`,
+      detail: `${selectedIndustry} workspace activated with ${selectedAgents.length} AI agents.`,
       status: "completed",
     });
     toast.success("AI team activated", { description: "Run the Business Doctor diagnosis next." });

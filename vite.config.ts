@@ -17,6 +17,17 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig({
+  server: {
+    port: 5173,
+    proxy: {
+      // Proxy /v1/* to NestJS backend — avoids CORS in dev
+      '/v1': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
+  },
   plugins: [
     figmaAssetResolver(),
     // The React and Tailwind plugins are both required for Make, even if

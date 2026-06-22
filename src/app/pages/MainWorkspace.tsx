@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { motion } from "motion/react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -8,88 +8,260 @@ import { Badge } from "../components/ui/badge";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
-  Brain,
-  Send,
-  Mic,
-  Paperclip,
-  Settings,
-  Users,
-  TrendingUp,
-  BarChart3,
-  MessageSquare,
-  Globe,
-  Zap,
-  Bell,
-  Search,
-  Plus,
-  ChevronDown,
-  Sparkles,
-  MoreVertical,
-  ShoppingBag,
-  Shield,
-  LifeBuoy,
-  Cpu,
-  Workflow,
+  Brain, Send, Mic, Paperclip, Settings, Users, TrendingUp,
+  BarChart3, MessageSquare, Globe, Zap, Bell, Search, Plus,
+  ChevronDown, Sparkles, MoreVertical, ShoppingBag, Shield,
+  LifeBuoy, Cpu, Workflow, CheckCircle2, Loader2, AlertCircle,
 } from "lucide-react";
+import { streamChatMessages, api, AgentSummary } from "../lib/api";
+import { getUser, getAuth } from "../lib/auth-store";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type MsgRole = "user" | "system" | "agent" | "ceo" | "planner";
+
+interface ChatMsg {
+  id: string;
+  role: MsgRole;
+  agentSlug?: string;
+  agentName?: string;
+  content: string;
+  status?: "streaming" | "done" | "error";
+  timestamp: string;
+}
+
+interface AgentMeetingEvent {
+  type: string;
+  agent?: string;
+  agent_name?: string;
+  content?: string;
+  chunk?: string;
+  message?: string;
+  agents?: string[];
+  action_plan?: string[];
+}
+
+const AGENT_COLORS: Record<string, string> = {
+  planner: "blue", ceo: "purple", sales: "emerald", seo: "amber",
+  content: "pink", social: "orange", finance: "cyan", "qa": "red",
+  security: "rose", "website-designer": "indigo", "project-manager": "teal",
+  "cost-optimizer": "yellow",
+};
+
+const agentColor = (slug: string) => AGENT_COLORS[slug] ?? "gray";
+
+// ── Sidebar links ─────────────────────────────────────────────────────────────
+const QUICK_LINKS = [
+  { to: "/agents", Icon: Users, label: "AI Agents" },
+  { to: "/agent-os", Icon: Workflow, label: "Agent OS" },
+  { to: "/ceo", Icon: BarChart3, label: "AI CEO" },
+  { to: "/business-doctor", Icon: Brain, label: "Business Doctor" },
+  { to: "/meeting", Icon: MessageSquare, label: "AI Meeting Room" },
+  { to: "/voice", Icon: Mic, label: "Voice Interface" },
+];
+
+const WORKSPACE_LINKS = [
+  { to: "/crm", Icon: BarChart3, label: "CRM Dashboard" },
+  { to: "/seo", Icon: TrendingUp, label: "SEO Workspace" },
+  { to: "/social", Icon: MessageSquare, label: "Social Media" },
+  { to: "/automation", Icon: Zap, label: "Automation" },
+  { to: "/brain", Icon: Brain, label: "Company Brain" },
+  { to: "/website-designer", Icon: Globe, label: "Website Designer" },
+  { to: "/industry", Icon: ShoppingBag, label: "Industry AI Packs" },
+  { to: "/marketplace", Icon: ShoppingBag, label: "Marketplace" },
+  { to: "/analytics", Icon: Globe, label: "Analytics" },
+  { to: "/admin", Icon: Shield, label: "Admin" },
+  { to: "/llm-management", Icon: Cpu, label: "API & LLM Settings" },
+  { to: "/accounting", Icon: Settings, label: "Accounting" },
+  { to: "/tickets", Icon: LifeBuoy, label: "Tickets" },
+  { to: "/notifications", Icon: Bell, label: "Notifications" },
+  { to: "/help", Icon: Sparkles, label: "Help Center" },
+  { to: "/qa-audit", Icon: Search, label: "QA Audit" },
+];
+
+// ── Suggestion prompts ─────────────────────────────────────────────────────────
+const SUGGESTIONS = [
+  "Why are my sales down this month?",
+  "Create a content calendar for next month",
+  "Analyze my website SEO and fix critical issues",
+  "What's my projected revenue for Q3?",
+];
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MainWorkspace() {
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([
+  const user = getUser();
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMsg[]>([
     {
-      id: 1,
-      type: "ai",
-      agent: "SEO Agent",
-      content: "I've completed the keyword analysis for your new blog post. Found 15 high-opportunity keywords with low competition.",
-      time: "2 min ago",
-      status: "completed",
-    },
-    {
-      id: 2,
-      type: "user",
-      content: "Can you generate a content calendar for next month?",
-      time: "5 min ago",
-    },
-    {
-      id: 3,
-      type: "ai",
-      agent: "Social Media Agent",
-      content: "Working on your content calendar now. Analyzing trending topics and optimal posting times...",
-      time: "Just now",
-      status: "thinking",
+      id: "welcome",
+      role: "system",
+      content: "AI Business OS is ready. All agents are standing by. Ask anything about your business.",
+      status: "done",
+      timestamp: new Date().toISOString(),
     },
   ]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [meetingActive, setMeetingActive] = useState(false);
+  const [activeAgentsInMeeting, setActiveAgentsInMeeting] = useState<string[]>([]);
+  const [llmConfigured, setLlmConfigured] = useState(false);
+  const [sidebarAgents, setSidebarAgents] = useState<AgentSummary[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const sessionId = useRef(`ws-${Date.now()}`);
+  const historyRef = useRef<Array<{ role: "user" | "assistant"; content: string; createdAt: string }>>([]);
 
-  const activeAgents = [
-    { name: "SEO Agent", status: "active", icon: TrendingUp, color: "blue" },
-    { name: "Sales Agent", status: "active", icon: Users, color: "purple" },
-    { name: "CRM Agent", status: "idle", icon: BarChart3, color: "green" },
-    { name: "Social Agent", status: "active", icon: MessageSquare, color: "orange" },
-  ];
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const recentTasks = [
-    { title: "Blog post optimization", agent: "SEO Agent", status: "completed", progress: 100 },
-    { title: "Lead qualification", agent: "Sales Agent", status: "in-progress", progress: 65 },
-    { title: "Social media posts", agent: "Social Agent", status: "in-progress", progress: 40 },
-  ];
+  useEffect(() => {
+    const loadAgents = () =>
+      api.getAgentsSummary().then(setSidebarAgents).catch(() => {});
+    loadAgents();
+    const i = setInterval(loadAgents, 15_000);
+    return () => clearInterval(i);
+  }, []);
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
-    
-    setMessages([
-      ...messages,
-      {
-        id: messages.length + 1,
-        type: "user",
-        content: message,
-        time: "Just now",
-      },
-    ]);
-    setMessage("");
+  const addMsg = useCallback((msg: Partial<ChatMsg> & { id: string }) => {
+    setMessages((prev) => {
+      const exists = prev.findIndex((m) => m.id === msg.id);
+      if (exists >= 0) {
+        const updated = [...prev];
+        updated[exists] = { ...updated[exists], ...msg };
+        return updated;
+      }
+      return [...prev, { role: "agent", content: "", status: "streaming", timestamp: new Date().toISOString(), ...msg } as ChatMsg];
+    });
+  }, []);
+
+  const sendMessage = useCallback(async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || isStreaming) return;
+    setInput("");
+    setIsStreaming(true);
+
+    const userMsgId = `user-${Date.now()}`;
+    const userMsg: ChatMsg = { id: userMsgId, role: "user", content: msg, status: "done", timestamp: new Date().toISOString() };
+    setMessages((prev) => [...prev, userMsg]);
+    historyRef.current.push({ role: "user", content: msg, createdAt: userMsg.timestamp });
+
+    let plannerMsgId = `planner-${Date.now()}`;
+    let ceoMsgId = `ceo-${Date.now()}`;
+    const agentMsgIds: Record<string, string> = {};
+
+    try {
+      for await (const event of streamChatMessages(msg, historyRef.current.slice(-8), sessionId.current)) {
+        const e = event as AgentMeetingEvent;
+
+        switch (e.type) {
+          case "status":
+            addMsg({ id: "status-bar", role: "system", content: e.message ?? "Processing...", status: "streaming" });
+            break;
+
+          case "planner":
+            addMsg({
+              id: plannerMsgId,
+              role: "planner",
+              agentSlug: "planner",
+              agentName: "Planner Agent",
+              content: e.content ?? "",
+              status: "done",
+            });
+            if (e.agents?.length) {
+              setActiveAgentsInMeeting(e.agents);
+              setMeetingActive(true);
+            }
+            break;
+
+          case "meeting_start":
+            addMsg({ id: "meeting-header", role: "system", content: `Agent meeting started — ${(e.agents ?? []).join(", ")}`, status: "done" });
+            break;
+
+          case "agent_chunk":
+            if (!agentMsgIds[e.agent ?? ""]) {
+              agentMsgIds[e.agent ?? ""] = `agent-${e.agent}-${Date.now()}`;
+            }
+            addMsg({
+              id: agentMsgIds[e.agent ?? ""],
+              role: "agent",
+              agentSlug: e.agent,
+              agentName: e.agent_name ?? e.agent,
+              content: (messages.find((m) => m.id === agentMsgIds[e.agent ?? ""])?.content ?? "") + (e.chunk ?? ""),
+              status: "streaming",
+            });
+            break;
+
+          case "agent_done":
+            if (agentMsgIds[e.agent ?? ""]) {
+              setMessages((prev) =>
+                prev.map((m) => m.id === agentMsgIds[e.agent ?? ""] ? { ...m, status: "done" } : m)
+              );
+            }
+            break;
+
+          case "synthesis_chunk":
+            setMessages((prev) => {
+              const exists = prev.find((m) => m.id === ceoMsgId);
+              if (exists) return prev.map((m) => m.id === ceoMsgId ? { ...m, content: m.content + (e.chunk ?? "") } : m);
+              return [...prev, { id: ceoMsgId, role: "ceo", agentSlug: "ceo", agentName: "CEO Agent", content: e.chunk ?? "", status: "streaming", timestamp: new Date().toISOString() }];
+            });
+            break;
+
+          case "action_plan":
+            setMessages((prev) =>
+              prev.map((m) => m.id === ceoMsgId ? { ...m, status: "done" } : m)
+            );
+            if (e.action_plan?.length) {
+              addMsg({
+                id: `plan-${Date.now()}`,
+                role: "system",
+                content: "**Action Plan:**\n" + e.action_plan.map((a, i) => `${i + 1}. ${a}`).join("\n"),
+                status: "done",
+              });
+            }
+            break;
+
+          case "done":
+            setMessages((prev) => prev.filter((m) => m.id !== "status-bar"));
+            setMeetingActive(false);
+            setActiveAgentsInMeeting([]);
+            setLlmConfigured((event as { llm_configured?: boolean }).llm_configured ?? llmConfigured);
+            // Add final assistant turn to history
+            const lastCeo = [...messages].reverse().find((m: ChatMsg) => m.role === "ceo");
+            if (lastCeo) historyRef.current.push({ role: "assistant", content: lastCeo.content, createdAt: new Date().toISOString() });
+            break;
+
+          case "error":
+            addMsg({ id: `err-${Date.now()}`, role: "system", content: `Error: ${e.message}`, status: "error" });
+            break;
+        }
+      }
+    } catch (err) {
+      addMsg({ id: `err-${Date.now()}`, role: "system", content: `Connection error: ${String(err)}`, status: "error" });
+    } finally {
+      setIsStreaming(false);
+      inputRef.current?.focus();
+    }
+  }, [input, isStreaming, addMsg, messages, llmConfigured]);
+
+  const roleLabel = (msg: ChatMsg) => {
+    if (msg.role === "user") return "You";
+    if (msg.role === "ceo") return "CEO Agent";
+    if (msg.role === "planner") return "Planner Agent";
+    return msg.agentName ?? "Agent";
+  };
+
+  const roleColor = (msg: ChatMsg) => {
+    if (msg.role === "user") return "from-blue-500 to-purple-600";
+    if (msg.role === "ceo") return "from-purple-500 to-pink-600";
+    if (msg.role === "planner") return "from-blue-400 to-cyan-500";
+    return `from-${agentColor(msg.agentSlug ?? "")}-500 to-${agentColor(msg.agentSlug ?? "")}-700`;
   };
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Top Navigation */}
+      {/* Top Nav */}
       <nav className="border-b border-white/10 backdrop-blur-xl bg-black/20 sticky top-0 z-50">
         <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -99,7 +271,6 @@ export default function MainWorkspace() {
               </div>
               <span className="font-semibold">AI OS</span>
             </Link>
-
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -108,15 +279,22 @@ export default function MainWorkspace() {
               />
             </div>
           </div>
-
           <div className="flex items-center gap-3">
+            {!llmConfigured && (
+              <Link to="/llm-management">
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 cursor-pointer hover:bg-amber-500/30">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  Add LLM Key
+                </Badge>
+              </Link>
+            )}
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 relative">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" />
             </Button>
             <Avatar className="w-8 h-8 border border-white/20">
-              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm">
-                JD
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
+                {user?.name?.slice(0, 2).toUpperCase() ?? "AI"}
               </AvatarFallback>
             </Avatar>
           </div>
@@ -127,7 +305,10 @@ export default function MainWorkspace() {
         {/* Sidebar */}
         <div className="w-72 border-r border-white/10 bg-[#0a0a0f] flex flex-col">
           <div className="p-4 border-b border-white/10">
-            <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0">
+            <Button
+              onClick={() => { setMessages([{ id: "welcome", role: "system", content: "New conversation started.", status: "done", timestamp: new Date().toISOString() }]); historyRef.current = []; sessionId.current = `ws-${Date.now()}`; }}
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0"
+            >
               <Plus className="w-4 h-4 mr-2" />
               New Conversation
             </Button>
@@ -136,178 +317,112 @@ export default function MainWorkspace() {
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mb-6">
               <h3 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Quick Actions</h3>
-              <div className="space-y-2">
-                <Link to="/agents">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Users className="w-4 h-4 mr-2" />
-                    AI Agents
-                  </Button>
-                </Link>
-                <Link to="/agent-os">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Workflow className="w-4 h-4 mr-2" />
-                    Agent OS
-                  </Button>
-                </Link>
-                <Link to="/ceo">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    AI CEO
-                  </Button>
-                </Link>
-                <Link to="/business-doctor">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Brain className="w-4 h-4 mr-2" />
-                    Business Doctor
-                  </Button>
-                </Link>
-                <Link to="/meeting">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    AI Meeting Room
-                  </Button>
-                </Link>
-                <Link to="/voice">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Mic className="w-4 h-4 mr-2" />
-                    Voice Interface
-                  </Button>
-                </Link>
+              <div className="space-y-1">
+                {QUICK_LINKS.map(({ to, Icon, label }) => (
+                  <Link key={to} to={to}>
+                    <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10 h-8 text-sm">
+                      <Icon className="w-4 h-4 mr-2" />{label}
+                    </Button>
+                  </Link>
+                ))}
               </div>
             </div>
 
             <div className="mb-6">
               <h3 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Workspaces</h3>
-              <div className="space-y-2">
-                <Link to="/crm">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    CRM Dashboard
-                  </Button>
-                </Link>
-                <Link to="/seo">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    SEO Workspace
-                  </Button>
-                </Link>
-                <Link to="/social">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Social Media
-                  </Button>
-                </Link>
-                <Link to="/automation">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Zap className="w-4 h-4 mr-2" />
-                    Automation
-                  </Button>
-                </Link>
-                <Link to="/brain">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Brain className="w-4 h-4 mr-2" />
-                    Company Brain
-                  </Button>
-                </Link>
-                <Link to="/website-designer">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Globe className="w-4 h-4 mr-2" />
-                    Website Designer
-                  </Button>
-                </Link>
-                <Link to="/marketplace">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <ShoppingBag className="w-4 h-4 mr-2" />
-                    Marketplace
-                  </Button>
-                </Link>
-                <Link to="/analytics">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Globe className="w-4 h-4 mr-2" />
-                    Analytics
-                  </Button>
-                </Link>
-                <Link to="/admin">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Shield className="w-4 h-4 mr-2" />
-                    Admin
-                  </Button>
-                </Link>
-                <Link to="/llm-management">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Cpu className="w-4 h-4 mr-2" />
-                    LLM Management
-                  </Button>
-                </Link>
-                <Link to="/tickets">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <LifeBuoy className="w-4 h-4 mr-2" />
-                    Tickets
-                  </Button>
-                </Link>
-                <Link to="/notifications">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Bell className="w-4 h-4 mr-2" />
-                    Notifications
-                  </Button>
-                </Link>
-                <Link to="/help">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Help Center
-                  </Button>
-                </Link>
-                <Link to="/qa-audit">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Search className="w-4 h-4 mr-2" />
-                    QA Audit
-                  </Button>
-                </Link>
-                <Link to="/architecture">
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Architecture
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Active Agents</h3>
-              <div className="space-y-2">
-                {activeAgents.map((agent) => (
-                  <Card key={agent.name} className="bg-white/5 border-white/10 p-3 hover:bg-white/10 transition-colors cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-lg bg-${agent.color}-500/20 flex items-center justify-center`}>
-                        <agent.icon className={`w-4 h-4 text-${agent.color}-400`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{agent.name}</div>
-                        <div className="flex items-center gap-1 text-xs">
-                          <div className={`w-1.5 h-1.5 rounded-full ${agent.status === "active" ? "bg-green-500 animate-pulse" : "bg-gray-500"}`} />
-                          <span className="text-gray-400 capitalize">{agent.status}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
+              <div className="space-y-1">
+                {WORKSPACE_LINKS.map(({ to, Icon, label }) => (
+                  <Link key={to} to={to}>
+                    <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10 h-8 text-sm">
+                      <Icon className="w-4 h-4 mr-2" />{label}
+                    </Button>
+                  </Link>
                 ))}
               </div>
             </div>
+
+            {/* Active Agents Panel — always visible */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center justify-between">
+                <span>Active Agents</span>
+                <Link to="/agents" className="text-blue-400 hover:text-blue-300 normal-case font-normal tracking-normal">
+                  View all
+                </Link>
+              </h3>
+              {sidebarAgents.length === 0 ? (
+                <div className="text-xs text-gray-600 py-2">Loading agents...</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {sidebarAgents.slice(0, 12).map((agent) => {
+                    const isActive = agent.status === "ACTIVE";
+                    const inMeeting = isActive && meetingActive && activeAgentsInMeeting.some(
+                      (slug) => agent.slug.includes(slug) || slug.includes(agent.slug.split("-")[0])
+                    );
+                    return (
+                      <div
+                        key={agent.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all ${
+                          inMeeting
+                            ? "bg-amber-500/10 border border-amber-500/20"
+                            : "hover:bg-white/5"
+                        }`}
+                      >
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                            inMeeting
+                              ? "bg-amber-400 animate-pulse"
+                              : isActive
+                              ? "bg-green-500 animate-pulse"
+                              : "bg-red-500"
+                          }`}
+                        />
+                        <span className={`text-xs truncate flex-1 ${isActive ? "text-gray-300" : "text-gray-500"}`}>
+                          {agent.name}
+                        </span>
+                        {isActive && (agent.stats?.activeTasks ?? 0) > 0 && (
+                          <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full shrink-0">
+                            {agent.stats!.activeTasks}
+                          </span>
+                        )}
+                        {inMeeting && (
+                          <span className="text-[10px] text-amber-400 shrink-0">🎤</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {meetingActive && activeAgentsInMeeting.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <h3 className="text-xs font-semibold text-amber-400 mb-2 uppercase tracking-wider">
+                  🔴 Meeting In Progress
+                </h3>
+                <div className="space-y-1">
+                  {activeAgentsInMeeting.map((slug) => (
+                    <div key={slug} className="flex items-center gap-2 text-xs text-amber-300 px-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span className="capitalize">{slug.replace(/-/g, " ")}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-4 border-t border-white/10">
-            <Link to="/subscription">
+            <Link to="/llm-management">
               <Button variant="outline" className="w-full border-white/20 text-white hover:bg-white/10">
                 <Settings className="w-4 h-4 mr-2" />
-                Settings
+                API Settings
               </Button>
             </Link>
           </div>
         </div>
 
-        {/* Main Chat Area */}
+        {/* Main Chat */}
         <div className="flex-1 flex flex-col">
-          {/* Agent Selector */}
           <div className="p-4 border-b border-white/10 bg-[#111117]/50 backdrop-blur-xl">
             <div className="flex items-center justify-between">
               <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
@@ -316,64 +431,116 @@ export default function MainWorkspace() {
                 <ChevronDown className="w-4 h-4 ml-2" />
               </Button>
               <div className="flex items-center gap-2">
-                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                  4 Agents Active
-                </Badge>
+                {meetingActive ? (
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Meeting Active
+                  </Badge>
+                ) : (
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                    Agents Ready
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`flex gap-4 ${msg.type === "user" ? "flex-row-reverse" : ""}`}
-              >
-                <Avatar className="w-10 h-10 shrink-0">
-                  <AvatarFallback className={msg.type === "ai" ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" : "bg-white/10 text-white"}>
-                    {msg.type === "ai" ? <Brain className="w-5 h-5" /> : "You"}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                >
+                  {msg.role !== "system" && (
+                    <Avatar className="w-9 h-9 shrink-0">
+                      <AvatarFallback className={`bg-gradient-to-br ${roleColor(msg)} text-white text-xs`}>
+                        {msg.role === "user" ? (user?.name?.slice(0, 2).toUpperCase() ?? "U") : <Brain className="w-4 h-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className={`flex-1 max-w-2xl ${msg.role === "user" ? "flex flex-col items-end" : ""} ${msg.role === "system" ? "mx-auto max-w-full" : ""}`}>
+                    {msg.role !== "user" && msg.role !== "system" && (
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="font-semibold text-sm capitalize">{roleLabel(msg)}</span>
+                        {msg.status === "streaming" && (
+                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
+                            <Loader2 className="w-2 h-2 animate-spin mr-1" />Typing
+                          </Badge>
+                        )}
+                        {msg.status === "done" && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                        )}
+                      </div>
+                    )}
+                    {msg.role === "system" ? (
+                      <div className="text-xs text-gray-500 text-center py-1">{msg.content}</div>
+                    ) : (
+                      <Card className={`p-4 ${msg.role === "user" ? "bg-gradient-to-br from-blue-500/20 to-purple-600/20 border-blue-500/30" : msg.status === "error" ? "bg-red-500/10 border-red-500/20" : "bg-white/5 border-white/10"}`}>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      </Card>
+                    )}
+                    {msg.role !== "system" && (
+                      <span className="text-xs text-gray-600 mt-1">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {isStreaming && !messages.some((m) => m.status === "streaming") && (
+              <div className="flex gap-3">
+                <Avatar className="w-9 h-9 shrink-0">
+                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                    <Brain className="w-4 h-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className={`flex-1 ${msg.type === "user" ? "flex flex-col items-end" : ""}`}>
-                  {msg.type === "ai" && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-semibold text-sm">{msg.agent}</span>
-                      {msg.status === "thinking" && (
-                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                          <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse mr-1" />
-                          Thinking
-                        </Badge>
-                      )}
-                      {msg.status === "completed" && (
-                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                          Completed
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                  <Card className={`p-4 max-w-2xl ${msg.type === "ai" ? "bg-white/5 border-white/10" : "bg-gradient-to-br from-blue-500/20 to-purple-600/20 border-blue-500/30"}`}>
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                  </Card>
-                  <span className="text-xs text-gray-500 mt-1">{msg.time}</span>
-                </div>
-              </motion.div>
-            ))}
+                <Card className="p-4 bg-white/5 border-white/10">
+                  <div className="flex gap-1 items-center">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
           </div>
 
-          {/* Input Area */}
+          {/* Suggestion pills */}
+          {messages.length <= 2 && !isStreaming && (
+            <div className="px-6 pb-2 flex flex-wrap gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => sendMessage(s)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
           <div className="p-4 border-t border-white/10 bg-[#111117]/50 backdrop-blur-xl">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-end gap-3">
                 <div className="flex-1 relative">
                   <Input
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
                     placeholder="Ask your AI agents anything..."
-                    className="pr-24 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-blue-500/50 min-h-12"
+                    disabled={isStreaming}
+                    className="pr-20 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-blue-500/50 min-h-12 disabled:opacity-50"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-white hover:bg-white/10">
@@ -384,79 +551,81 @@ export default function MainWorkspace() {
                     </Button>
                   </div>
                 </div>
-                <Button onClick={handleSendMessage} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 h-12 px-6">
-                  <Send className="w-4 h-4" />
+                <Button
+                  onClick={() => sendMessage()}
+                  disabled={isStreaming || !input.trim()}
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 h-12 px-6 disabled:opacity-50"
+                >
+                  {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                AI agents can make mistakes. Verify important information.
+              <p className="text-xs text-gray-600 mt-2 text-center">
+                AI agents may make mistakes. Review important decisions.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Panel - Tasks & Memory */}
+        {/* Right Panel */}
         <div className="w-80 border-l border-white/10 bg-[#0a0a0f] overflow-y-auto">
-          <Tabs defaultValue="tasks" className="h-full">
+          <Tabs defaultValue="context" className="h-full">
             <TabsList className="w-full bg-transparent border-b border-white/10 rounded-none p-0">
-              <TabsTrigger value="tasks" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
-                Tasks
+              <TabsTrigger value="context" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+                Context
               </TabsTrigger>
-              <TabsTrigger value="memory" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
-                Memory
+              <TabsTrigger value="meeting" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+                Meeting
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="tasks" className="p-4 space-y-4 mt-0">
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Recent Tasks</h3>
-                <div className="space-y-3">
-                  {recentTasks.map((task) => (
-                    <Card key={task.title} className="bg-white/5 border-white/10 p-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <div className="font-medium text-sm">{task.title}</div>
-                          <div className="text-xs text-gray-400">{task.agent}</div>
-                        </div>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-gray-400 hover:text-white hover:bg-white/10">
-                          <MoreVertical className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-400">{task.progress}%</span>
-                          <Badge className={`${task.status === "completed" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30"}`}>
-                            {task.status}
-                          </Badge>
-                        </div>
-                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all" style={{ width: `${task.progress}%` }} />
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+            <TabsContent value="context" className="p-4 space-y-4 mt-0">
+              <h3 className="text-sm font-semibold">Company Context</h3>
+              <Card className="bg-white/5 border-white/10 p-3">
+                <div className="text-xs text-gray-400 mb-1">Account</div>
+                <div className="text-sm">{user?.name ?? "—"}</div>
+              </Card>
+              <Card className="bg-white/5 border-white/10 p-3">
+                <div className="text-xs text-gray-400 mb-1">Email</div>
+                <div className="text-sm truncate">{user?.email ?? "—"}</div>
+              </Card>
+              <Card className="bg-white/5 border-white/10 p-3">
+                <div className="text-xs text-gray-400 mb-1">LLM Status</div>
+                <div className={`text-sm ${llmConfigured ? "text-green-400" : "text-amber-400"}`}>
+                  {llmConfigured ? "Connected" : "Not configured"}
                 </div>
-              </div>
+              </Card>
+              {!llmConfigured && (
+                <Link to="/llm-management">
+                  <Button variant="outline" size="sm" className="w-full border-amber-500/30 text-amber-400 hover:bg-amber-500/10 mt-2">
+                    <Cpu className="w-3 h-3 mr-2" />
+                    Connect OpenAI Key
+                  </Button>
+                </Link>
+              )}
             </TabsContent>
 
-            <TabsContent value="memory" className="p-4 space-y-4 mt-0">
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Conversation Context</h3>
-                <div className="space-y-3">
-                  <Card className="bg-white/5 border-white/10 p-3">
-                    <div className="text-xs text-gray-400 mb-1">Company Info</div>
-                    <div className="text-sm">TechCorp Inc.</div>
+            <TabsContent value="meeting" className="p-4 space-y-3 mt-0">
+              <h3 className="text-sm font-semibold">
+                {meetingActive ? "Meeting in progress" : "Last meeting"}
+              </h3>
+              {activeAgentsInMeeting.length > 0 ? (
+                activeAgentsInMeeting.map((slug) => (
+                  <Card key={slug} className="bg-white/5 border-white/10 p-3 flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full bg-${agentColor(slug)}-500/20 flex items-center justify-center`}>
+                      <Brain className={`w-4 h-4 text-${agentColor(slug)}-400`} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium capitalize">{slug.replace("-", " ")}</div>
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        Speaking
+                      </div>
+                    </div>
                   </Card>
-                  <Card className="bg-white/5 border-white/10 p-3">
-                    <div className="text-xs text-gray-400 mb-1">Industry</div>
-                    <div className="text-sm">SaaS</div>
-                  </Card>
-                  <Card className="bg-white/5 border-white/10 p-3">
-                    <div className="text-xs text-gray-400 mb-1">Active Campaign</div>
-                    <div className="text-sm">Q2 Product Launch</div>
-                  </Card>
-                </div>
-              </div>
+                ))
+              ) : (
+                <p className="text-xs text-gray-500">Send a message to start an agent meeting.</p>
+              )}
             </TabsContent>
           </Tabs>
         </div>

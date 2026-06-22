@@ -27,6 +27,22 @@ npm run dev
 
 Then open `http://localhost:5173`.
 
+Run the AI engine in a second terminal for real Business Doctor crawling, LLM/API settings, competitor intelligence, CRM strategy, Meta Ads approval workflows, WordPress fixing plans, and accounting data:
+
+```bash
+cd ai-engine
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Optional local environment:
+
+```bash
+set VITE_AI_ENGINE_URL=http://localhost:8000
+```
+
 ## Key Routes
 
 - `/` - Landing page
@@ -34,6 +50,8 @@ Then open `http://localhost:5173`.
 - `/agent-os` - Autonomous multi-agent operating system command center
 - `/ceo` - AI CEO command center for business diagnosis, boardroom decisions, and growth execution
 - `/business-doctor` - Company website/social diagnosis and action center
+- `/llm-management` - API and LLM provider key management for local AI engine routing
+- `/accounting` - AI Accounting Manager with invoices, expenses, and profit forecast
 - `/meeting` - AI meeting room
 - `/voice` - Voice AI interface
 - `/automation` - Workflow builder

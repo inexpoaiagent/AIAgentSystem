@@ -7,7 +7,9 @@ import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { Progress } from "../components/ui/progress";
 import { doctorCopy, Locale, locales } from "../lib/i18n";
+import { api, type BusinessDoctorReport } from "../lib/api";
 import { createRuntimeEvent, getSession, saveSession } from "../lib/runtime-store";
+import { getCompanyId } from "../lib/auth-store";
 import {
   AlertTriangle,
   ArrowRight,
@@ -45,10 +47,10 @@ type ChannelForm = {
 };
 
 const initialForm: ChannelForm = {
-  website: "https://example-realestate.com",
-  instagram: "https://instagram.com/example.realestate",
-  facebook: "https://facebook.com/example.realestate",
-  youtube: "https://youtube.com/@example-realestate",
+  website: "https://homecyp.com/",
+  instagram: "https://instagram.com/homecyp",
+  facebook: "https://facebook.com/homecyp",
+  youtube: "https://youtube.com/@homecyp",
   industry: "Real Estate",
 };
 
@@ -114,12 +116,26 @@ export default function BusinessDoctor() {
   });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [hasReport, setHasReport] = useState(false);
+  const [report, setReport] = useState<BusinessDoctorReport | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const copy = doctorCopy[locale];
 
-  const overallScore = useMemo(
-    () => Math.round(modules.reduce((sum, module) => sum + module.score, 0) / modules.length),
-    [],
-  );
+  const displayedModules = useMemo(() => {
+    if (!report) return modules;
+    const iconMap = [TrendingUp, Globe, FileText, Instagram, Users, WalletCards];
+    return report.diagnosis.diagnosis.map((module, index) => ({
+      title: module.area.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+      score: module.score,
+      icon: iconMap[index] ?? Brain,
+      issues: module.issues,
+      actions: report.diagnosis.next_actions.slice(index, index + 3).length
+        ? report.diagnosis.next_actions.slice(index, index + 3)
+        : ["Create agent task", "Schedule review", "Add to workflow"],
+      crawler: module.crawler,
+    }));
+  }, [report]);
+
+  const overallScore = report?.diagnosis.business_health_score ?? Math.round(modules.reduce((sum, module) => sum + module.score, 0) / modules.length);
 
   const update = (key: keyof ChannelForm, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -133,23 +149,49 @@ export default function BusinessDoctor() {
     }
 
     setIsAnalyzing(true);
+    setAnalysisError(null);
     createRuntimeEvent({
       type: "action",
       title: "Business Doctor analysis started",
       detail: `Analyzing ${form.website}, Instagram, Facebook, YouTube, CRM readiness, SEO, design, leads, and content.`,
       status: "running",
     });
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    saveSession({ ...session, businessChannels: form, lastBusinessDiagnosisScore: overallScore });
-    createRuntimeEvent({
-      type: "audit",
-      title: "Business Doctor diagnosis completed",
-      detail: `${form.industry} scored ${overallScore}/100. AI team proposed CRM, SEO, social, website, sales, and finance actions.`,
-      status: "completed",
-    });
-    setHasReport(true);
-    setIsAnalyzing(false);
-    toast.success("Diagnosis ready", { description: "AI agents generated a full business health report and action plan." });
+    try {
+      const liveReport = await api.analyzeBusinessDoctor({
+        tenant_id: getCompanyId() ?? "local-tenant",
+        industry: form.industry,
+        website: form.website,
+        instagram: form.instagram,
+        facebook: form.facebook,
+        youtube: form.youtube,
+      });
+      setReport(liveReport);
+      saveSession({ ...session, businessChannels: form, lastBusinessDiagnosisScore: liveReport.diagnosis.business_health_score });
+      createRuntimeEvent({
+        type: "audit",
+        title: "Business Doctor diagnosis completed",
+        detail: `${form.industry} scored ${liveReport.diagnosis.business_health_score}/100 using website crawler, business rules, competitor intelligence, CRM, growth, and accounting engines.`,
+        status: "completed",
+      });
+      setHasReport(true);
+      toast.success("Diagnosis ready", {
+        description: liveReport.llm.configured
+          ? "Crawler and configured LLM provider generated the report."
+          : "Crawler and deterministic business rules generated the report. Add LLM keys for model reasoning.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown analysis error";
+      setAnalysisError(message);
+      createRuntimeEvent({
+        type: "audit",
+        title: "Business Doctor analysis failed",
+        detail: message,
+        status: "failed",
+      });
+      toast.error("Analysis failed", { description: "Start the AI engine locally and try again." });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const queueAction = (title: string, risk: "low" | "medium" | "high" = "medium") => {
@@ -244,10 +286,10 @@ export default function BusinessDoctor() {
               </div>
               <div className="space-y-4">
                 {[
-                  ["Lead capture", 49],
-                  ["SEO visibility", 61],
-                  ["Social growth", 54],
-                  ["Website conversion", 68],
+                  ["Lead capture", displayedModules.find((item) => item.title.includes("Lead"))?.score ?? 49],
+                  ["SEO visibility", displayedModules.find((item) => item.title.includes("Seo") || item.title.includes("Technical"))?.score ?? 61],
+                  ["Social growth", displayedModules.find((item) => item.title.includes("Social"))?.score ?? 54],
+                  ["Website conversion", displayedModules.find((item) => item.title.includes("Website"))?.score ?? 68],
                 ].map(([label, score]) => (
                   <div key={label as string}>
                     <div className="flex justify-between text-sm mb-2">
@@ -272,13 +314,26 @@ export default function BusinessDoctor() {
                 </div>
               ))}
             </div>
+
+            {analysisError && (
+              <div className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+                AI Engine error: {analysisError}. Run the FastAPI command shown in the README/local instructions, then click Analyze again.
+              </div>
+            )}
+
+            {report && (
+              <div className="mt-5 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">
+                <div className="font-medium">Live mode: {report.llm.mode}</div>
+                <div className="text-blue-100/80">{report.llm.note}</div>
+              </div>
+            )}
           </Card>
         </section>
 
         {hasReport && (
           <>
             <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {modules.map((module) => (
+              {displayedModules.map((module) => (
                 <Card key={module.title} className="bg-[#111117]/50 border-white/10 p-5">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -295,6 +350,15 @@ export default function BusinessDoctor() {
                     </Badge>
                   </div>
                   <Progress value={module.score} className="h-2 mb-4" />
+                  {module.crawler && (
+                    <div className="mb-4 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
+                      <div className="mb-1 font-medium text-white">Real crawler result</div>
+                      <div>Status: {module.crawler.status_code ?? "unreachable"} | Load: {module.crawler.load_time_ms ?? "n/a"} ms</div>
+                      <div>Title: {module.crawler.title ?? "not detected"}</div>
+                      <div>Forms: {module.crawler.forms} | Images missing alt: {module.crawler.images_missing_alt}</div>
+                      <div>Robots: {module.crawler.robots_txt} | Sitemap: {module.crawler.sitemap_xml}</div>
+                    </div>
+                  )}
                   <div className="mb-4">
                     <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">Problems</div>
                     <div className="space-y-2">
@@ -381,16 +445,71 @@ export default function BusinessDoctor() {
             <Card className="bg-[#111117]/50 border-white/10 p-6">
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-cyan-300" />
-                Competitor intelligence to add next
+                Competitor intelligence
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {competitors.map((item) => (
-                  <div key={item} className="rounded-lg bg-white/5 border border-white/10 p-4 text-sm text-gray-300">
-                    {item}
+              <p className="mb-4 text-sm text-gray-400">
+                {report?.competitor_intelligence.strategic_gap ?? "Competitor intelligence will appear after live analysis."}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {(report?.competitor_intelligence.competitors ?? competitors.map((item) => ({ name: item, domain: "Pending", why_ahead: [item], opportunity: "Run analysis first." }))).map((item) => (
+                  <div key={item.name} className="rounded-lg bg-white/5 border border-white/10 p-4 text-sm text-gray-300">
+                    <div className="font-medium text-white">{item.name}</div>
+                    <div className="mb-2 text-xs text-gray-500">{item.domain}</div>
+                    {item.why_ahead.map((reason) => (
+                      <div key={reason} className="mb-1">- {reason}</div>
+                    ))}
+                    <div className="mt-3 text-blue-300">{item.opportunity}</div>
                   </div>
                 ))}
               </div>
             </Card>
+
+            {report && (
+              <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="bg-[#111117]/50 border-white/10 p-6">
+                  <h2 className="text-xl font-semibold mb-4">AI Growth Strategy Engine</h2>
+                  <p className="text-sm text-gray-400 mb-4">{report.growth_strategy.objective}</p>
+                  <div className="space-y-2">
+                    {report.growth_strategy.why_sales_are_down.map((reason) => (
+                      <div key={reason} className="rounded-lg bg-white/5 border border-white/10 p-3 text-sm text-gray-300">{reason}</div>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="bg-[#111117]/50 border-white/10 p-6">
+                  <h2 className="text-xl font-semibold mb-4">AI CRM Manager</h2>
+                  <div className="space-y-2">
+                    {report.crm_manager.pipeline.map((stage) => (
+                      <div key={stage.name} className="rounded-lg bg-white/5 border border-white/10 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{stage.name}</span>
+                          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">Score {stage.score_min}+</Badge>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-400">{stage.automation}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="bg-[#111117]/50 border-white/10 p-6">
+                  <h2 className="text-xl font-semibold mb-4">Accounting forecast</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ["Revenue", report.accounting.forecast.monthly_revenue],
+                      ["Expenses", report.accounting.forecast.monthly_expense],
+                      ["Profit", report.accounting.forecast.projected_profit],
+                      ["Next forecast", report.accounting.forecast.next_month_profit_forecast],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg bg-white/5 border border-white/10 p-3">
+                        <div className="text-xs text-gray-400">{label}</div>
+                        <div className="text-xl font-bold">${Number(value).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button onClick={() => queueAction("Generate invoice and expense forecast", "high")} className="mt-4 w-full bg-white text-black hover:bg-gray-100">
+                    Create finance workflow
+                  </Button>
+                </Card>
+              </section>
+            )}
           </>
         )}
       </main>

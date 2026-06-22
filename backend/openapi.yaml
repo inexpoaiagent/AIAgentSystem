@@ -19,6 +19,59 @@ paths:
       responses:
         "202":
           description: Business diagnosis queued or completed with SEO, design, content, social, CRM, lead, accounting, and action recommendations.
+  /v1/integrations/connect:
+    post:
+      summary: Connect website crawler, Instagram, Facebook, YouTube, WordPress, and CRM APIs
+      responses:
+        "200":
+          description: Provider connection state, OAuth requirements, scopes, and next sync status.
+  /v1/settings/providers:
+    get:
+      summary: List configured LLM/API providers
+      responses:
+        "200":
+          description: Masked provider keys, enabled routing status, and model configuration.
+    post:
+      summary: Save or rotate LLM/API provider key
+      responses:
+        "200":
+          description: Provider key saved and masked. Production storage must encrypt credentials per tenant.
+  /v1/competitors/analyze:
+    post:
+      summary: Run automatic competitor intelligence
+      responses:
+        "200":
+          description: Competitor domains/social accounts, strategic gaps, and opportunities.
+  /v1/growth/strategy:
+    post:
+      summary: Generate AI growth strategy and answer CEO questions
+      responses:
+        "200":
+          description: Why sales are down, 90-day plan, KPIs, meeting consensus, and owner agents.
+  /v1/crm/manager-plan:
+    get:
+      summary: Get AI CRM Manager pipeline and lead scoring model
+      responses:
+        "200":
+          description: Pipeline stages, lead scoring weights, and automated manager actions.
+  /v1/accounting/dashboard:
+    get:
+      summary: Get accounting dashboard
+      responses:
+        "200":
+          description: Invoices, expenses, profit, and forecast data.
+  /v1/automations/meta-ads:
+    post:
+      summary: Create approval-gated Meta Ads lead workflow
+      responses:
+        "202":
+          description: Campaign workflow created and paused for human approval before ad spend.
+  /v1/automations/wordpress-fix:
+    post:
+      summary: Create WordPress/website fixing automation
+      responses:
+        "202":
+          description: Website fix workflow created with sandbox, screenshot, and approval policies.
   /v1/business-doctor/diagnoses:
     get:
       summary: List company business diagnosis reports

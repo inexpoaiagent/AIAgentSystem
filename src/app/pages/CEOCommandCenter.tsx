@@ -110,6 +110,8 @@ const timeline = [
 
 export default function CEOCommandCenter() {
   const [locale, setLocale] = useState<Locale>("en");
+  const [question, setQuestion] = useState("Why are sales down for HomeCyp this month?");
+  const [answer, setAnswer] = useState<string[]>([]);
   const text = copy[locale];
   const dir = locales[locale].dir;
   const score = 87;
@@ -130,6 +132,23 @@ export default function CEOCommandCenter() {
       title: "CEO growth plan approval requested",
       detail: "Human approval is required before outbound CRM messages, campaign spend, and website deployment.",
       status: "needs_approval",
+    });
+  };
+
+  const askCEO = () => {
+    const reasons = [
+      "Hot leads are not scored and assigned quickly enough, so high-intent buyers cool down before follow-up.",
+      "Website and social traffic are not connected into one CRM pipeline, which hides the true source of lost deals.",
+      "SEO content is not covering enough Cyprus property buying-intent searches compared with competitors.",
+      "Meta/Facebook campaigns need approval-gated lead forms and retargeting synced to CRM.",
+      "Finance tracking needs channel-level profit forecasting so budget moves toward the best lead sources.",
+    ];
+    setAnswer(reasons);
+    createRuntimeEvent({
+      type: "audit",
+      title: "AI CEO answered sales decline question",
+      detail: question,
+      status: "completed",
     });
   };
 
@@ -188,6 +207,29 @@ export default function CEOCommandCenter() {
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 {text.action}
               </Button>
+            </div>
+            <div className="mt-6 rounded-xl border border-white/10 bg-black/25 p-4">
+              <div className="mb-2 text-sm text-gray-300">Ask the AI CEO</div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  className="min-h-11 flex-1 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none"
+                  placeholder="Why are sales down?"
+                />
+                <Button onClick={askCEO} className="bg-white text-black hover:bg-gray-100">
+                  Ask CEO
+                </Button>
+              </div>
+              {answer.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {answer.map((item) => (
+                    <div key={item} className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm text-gray-300">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Card>
 
