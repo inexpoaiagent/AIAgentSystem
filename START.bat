@@ -27,7 +27,7 @@ set JWT_REFRESH_SECRET=super-secret-refresh-key-2025
 set PORT=8080
 set AI_ENGINE_URL=http://localhost:8000
 
-start "InexpoAI Backend" cmd /k "cd /d "E:\Codex\AI Agent\backend" && set DATABASE_URL=mysql://root@localhost:3306/ai_business_os && set JWT_SECRET=super-secret-jwt-key-2025 && set JWT_REFRESH_SECRET=super-secret-refresh-key-2025 && set PORT=8080 && set AI_ENGINE_URL=http://localhost:8000 && node dist/src/main.js"
+start "InexpoAI Backend" cmd /k "cd /d "E:\Codex\AI Agent\backend" && set DATABASE_URL=mysql://root@localhost:3306/ai_business_os?charset=utf8mb4 && set JWT_SECRET=dev_jwt_secret_change_in_production_use_32_chars_min && set JWT_REFRESH_SECRET=dev_refresh_secret_change_in_production_32_chars && set JWT_EXPIRES_IN=15m && set JWT_REFRESH_EXPIRES_IN=7d && set PORT=8080 && set NODE_ENV=development && set FRONTEND_URL=http://localhost:5173 && set AI_ENGINE_URL=http://localhost:8000 && set REDIS_URL=redis://localhost:6379 && set VOICE_PROVIDER_SECRET=dev_voice_secret && node dist/src/main.js"
 
 :: ── Start FastAPI AI Engine ──────────────────────────────────────────────────
 echo [3/4] Starting AI Engine (port 8000)...
