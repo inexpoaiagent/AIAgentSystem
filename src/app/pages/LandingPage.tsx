@@ -345,7 +345,7 @@ export default function LandingPage() {
                       </div>
 
                       {/* CTA */}
-                      <Link to={`/industry/${pack.id}`}>
+                      <Link to={`/industry/${pack.slug}`}>
                         <Button className="w-full h-9 text-sm font-medium text-white border-0"
                           style={{ background: `linear-gradient(135deg, ${pack.gradientFrom}, ${pack.gradientTo})` }}>
                           View Pack
