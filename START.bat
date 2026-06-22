@@ -31,7 +31,7 @@ start "InexpoAI Backend" cmd /k "cd /d "E:\Codex\AI Agent\backend" && set DATABA
 
 :: ── Start FastAPI AI Engine ──────────────────────────────────────────────────
 echo [3/4] Starting AI Engine (port 8000)...
-start "InexpoAI AI Engine" cmd /k "cd /d "E:\Codex\AI Agent\ai-engine" && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+start "InexpoAI AI Engine" cmd /k "cd /d "E:\Codex\AI Agent\ai-engine" && set OPENAI_MODEL=gpt-4o && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 :: ── Start Frontend ───────────────────────────────────────────────────────────
 echo [4/4] Starting Frontend (port 5173)...
